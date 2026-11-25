@@ -1,0 +1,377 @@
+# Ginlong Solis register specification (hybrid + string inverters).
+# Use it with:  python dump_defaults.py <ip> --spec solis
+#
+# Layout
+#   device / connection / reading : optional settings (CLI flags override them)
+#   defaults                      : writable-by-kind rule, 32-bit word naming
+#   groups                        : named lists of registers (the name is only a label)
+#
+# Register entry fields
+#   address   first register (decimal)                       [required]
+#   name      register name; may use {n} (1-based repeat counter) and {i}
+#             (repeat item: the counter, or the value from a list `repeat`)
+#   names     instead of `name`: consecutive registers. Each item is a string
+#             or a mapping {name, scale, unit, width, writable}
+#   kind      input (FC04) | holding (FC03)                  [inherited from group]
+#   width     1 (default) or 2 -> 32-bit value, high word first. Both words are
+#             dumped, named "<name> (high word)" / "<name> (low word)"
+#   scale/unit informational only (raw 2530 with scale 0.1 = 253.0 V)
+#   writable  default: holding => true, input => false (see `defaults`)
+#   repeat    N, or a list such as [A, B, C]: repeat the entry/block
+#   stride    registers between repeats (default: size of one block)
+
+device:
+  name: Ginlong Solis inverter
+
+connection:
+  port: 502
+  device_id: 1
+
+reading:
+  block: 10        # max registers per request
+  delay: 0.05      # seconds between requests
+  timeout: 3
+
+defaults:
+  writable: {input: false, holding: true}
+  word_names: [" (high word)", " (low word)"]
+
+groups:
+  # ======================================================================
+  # Hybrid inverter - information (input registers)
+  # ======================================================================
+  - name: hybrid-information
+    kind: input
+    registers:
+      - {address: 33000, names: [Model No, DSP Version, HMI Version, Protocol Version]}
+      - {address: 33004, name: "Serial Number word {n}", repeat: 16}
+      - {address: 33022, names: [Clock Year, Clock Month, Clock Day, Clock Hours, Clock Minutes, Clock Seconds]}
+      - {address: 33029, name: PV Total Energy, width: 2, scale: 1, unit: kWh}
+      - {address: 33031, name: PV Current Month Energy, width: 2, scale: 1, unit: kWh}
+      - {address: 33033, name: PV Last Month Energy, width: 2, scale: 1, unit: kWh}
+      - {address: 33035, name: PV Today Energy, scale: 0.1, unit: kWh}
+      - {address: 33036, name: PV Yesterday Energy, scale: 0.1, unit: kWh}
+      - {address: 33037, name: PV This Year Energy, width: 2, scale: 1, unit: kWh}
+      - {address: 33039, name: PV Last Year Energy, width: 2, scale: 1, unit: kWh}
+      - {address: 33041, name: Max Inverter Current, scale: 0.1, unit: A}
+      - {address: 33043, name: Battery Temperature (BMS), scale: 0.1, unit: C}
+      - {address: 33049, name: "PV Voltage {n}", repeat: 4, stride: 2, scale: 0.1, unit: V}
+      - {address: 33050, name: "PV Current {n}", repeat: 4, stride: 2, scale: 0.1, unit: A}
+      - {address: 33057, name: Total PV Power, width: 2, scale: 1, unit: W}
+      - {address: 33070, name: Alarm code data}
+      - {address: 33071, name: PV Bus Voltage, scale: 0.1, unit: V}
+      - {address: 33072, name: PV Bus Half Voltage, scale: 0.1, unit: V}
+      - {address: 33073, name: "{i} Phase Voltage", repeat: [A, B, C], scale: 0.1, unit: V}
+      - {address: 33076, name: "{i} Phase Current", repeat: [A, B, C], scale: 0.1, unit: A}
+      - {address: 33079, name: Active Power, width: 2, scale: 1, unit: W}
+      - {address: 33081, name: Reactive Power, width: 2, scale: 1, unit: var}
+      - {address: 33083, name: Apparent Power, width: 2, scale: 1, unit: VA}
+      - {address: 33093, name: Temperature, scale: 0.1, unit: C}
+      - {address: 33094, name: Grid Frequency, scale: 0.01, unit: Hz}
+      - {address: 33095, name: Status}
+      - {address: 33096, name: Lead-acid Battery Temperature, scale: 0.1, unit: C}
+      - address: 33116
+        names:
+          - Grid Fault Status Bits
+          - Backup Fault Status Bits
+          - Battery Fault Status Bits
+          - Inverter Fault Status Bits 1
+          - Inverter Fault Status Bits 2
+          - Operating Status Bits
+          - Operating Mode
+          - Grid Standard Mode Bits
+
+      # --- meter / battery / load ---
+      - {address: 33126, name: Meter Total Active Energy, width: 2, scale: 1, unit: kWh}
+      - {address: 33128, name: Meter Voltage, scale: 0.1, unit: V}
+      - {address: 33129, name: Meter Current, scale: 0.01, unit: A}
+      - {address: 33130, name: Meter Active Power, width: 2, scale: 1, unit: W}
+      - {address: 33132, name: Storage Control Switching Value}
+      - {address: 33133, name: Battery Voltage, scale: 0.1, unit: V}
+      - {address: 33134, name: Battery Current, scale: 0.1, unit: A}
+      - {address: 33135, name: Battery Current Direction}
+      - {address: 33136, name: LLC Bus Voltage, scale: 0.1, unit: V}
+      - {address: 33137, name: Backup AC Voltage Phase A, scale: 0.1, unit: V}
+      - {address: 33138, name: Backup AC Current Phase A, scale: 0.1, unit: A}
+      - {address: 33139, name: Battery SOC, scale: 1, unit: "%"}
+      - {address: 33140, name: Battery SOH, scale: 1, unit: "%"}
+      - {address: 33141, name: Battery Voltage (BMS), scale: 0.01, unit: V}
+      - {address: 33142, name: Battery Current (BMS), scale: 0.1, unit: A}
+      - {address: 33143, name: Battery Charge Current Limitation (BMS), scale: 0.1, unit: A}
+      - {address: 33144, name: Battery Discharge Current Limitation (BMS), scale: 0.1, unit: A}
+      - {address: 33145, name: Battery Fault Status 1 (BMS)}
+      - {address: 33146, name: Battery Fault Status 2 (BMS)}
+      - {address: 33147, name: Household load power, scale: 1, unit: W}
+      - {address: 33148, name: Backup Load power, scale: 1, unit: W}
+      - {address: 33149, name: Battery Power, width: 2, scale: 1, unit: W}
+      - {address: 33151, name: AC Grid Port Power, width: 2, scale: 1, unit: W}
+      - {address: 33153, name: Backup AC Voltage Phase B, scale: 0.1, unit: V}
+      - {address: 33154, name: Backup AC Current Phase B, scale: 0.1, unit: A}
+      - {address: 33155, name: Backup AC Voltage Phase C, scale: 0.1, unit: V}
+      - {address: 33156, name: Backup AC Current Phase C, scale: 0.1, unit: A}
+      - {address: 33157, name: Inverting Rectifying Power, scale: 1, unit: W}
+
+      # --- energy counters ---
+      - {address: 33161, name: Total Battery Charge Energy, width: 2, scale: 1, unit: kWh}
+      - {address: 33163, name: Today Battery Charge Energy, scale: 0.1, unit: kWh}
+      - {address: 33164, name: Yesterday Battery Charge Energy, scale: 0.1, unit: kWh}
+      - {address: 33165, name: Total Battery Discharge Energy, width: 2, scale: 1, unit: kWh}
+      - {address: 33167, name: Today Battery Discharge Energy, scale: 0.1, unit: kWh}
+      - {address: 33168, name: Yesterday Battery Discharge Energy, scale: 0.1, unit: kWh}
+      - {address: 33169, name: Total Energy Imported From Grid, width: 2, scale: 1, unit: kWh}
+      - {address: 33171, name: Today Energy Imported From Grid, scale: 0.1, unit: kWh}
+      - {address: 33172, name: Yesterday Energy Imported From Grid, scale: 0.1, unit: kWh}
+      - {address: 33173, name: Total Energy Fed Into Grid, width: 2, scale: 1, unit: kWh}
+      - {address: 33175, name: Today Energy Fed Into Grid, scale: 0.1, unit: kWh}
+      - {address: 33176, name: Yesterday Energy Fed Into Grid, scale: 0.1, unit: kWh}
+      - {address: 33177, name: Total Energy Consumption, width: 2, scale: 1, unit: kWh}
+      - {address: 33179, name: Today Energy Consumption, scale: 0.1, unit: kWh}
+      - {address: 33180, name: Yesterday Energy Consumption, scale: 0.1, unit: kWh}
+      - {address: 33186, name: AC Grid Port Total Energy Fed In, width: 2, scale: 1, unit: kWh}
+      - {address: 33188, name: AC Grid Port Total Energy Consumption, width: 2, scale: 1, unit: kWh}
+
+      # --- mirrors / misc ---
+      - {address: 33200, name: Backup Output Enabled Mirror}
+      - {address: 33201, name: Backup Voltage Reference, scale: 0.1, unit: V}
+      - {address: 33202, name: Backup Frequency Reference, scale: 0.01, unit: Hz}
+      - {address: 33203, name: Battery Charge Discharge Enabled Mirror}
+      - {address: 33204, name: Battery Direction Mirror}
+      - {address: 33206, name: Battery Max Charge Current Mirror, scale: 0.1, unit: A}
+      - {address: 33207, name: Battery Max Discharge Current Mirror, scale: 0.1, unit: A}
+      - {address: 33213, name: Overdischarge SOC Mirror, scale: 1, unit: "%"}
+      - {address: 33214, name: Force Charge SOC Mirror, scale: 1, unit: "%"}
+      - {address: 33215, name: AFCI Status}
+      - {address: 33216, name: Leakage Current, scale: 0.001, unit: A}
+      - {address: 33217, name: Battery Current Fast, scale: 0.1, unit: A}
+      - {address: 33243, name: Parallel Inverter AC Current, scale: 0.1, unit: A}
+      - {address: 33244, name: Parallel Inverter AC Voltage, scale: 0.1, unit: V}
+      - {address: 33245, name: Parallel Inverter Power, scale: 0.001, unit: kW}
+      - {address: 33246, name: Parallel CT Detection}
+      - {address: 33247, name: EPM Setpoint Power, scale: 1, unit: W}
+      - {address: 33248, name: EPM Status Bits}
+      - {address: 33249, name: EPM Backflow Power Realtime, scale: 1, unit: W}
+      - {address: 33250, name: Meter Placement Status Bits}
+
+      # --- meter 1 detail ---
+      - {address: 33251, name: "Meter AC Voltage {i}", repeat: [A, B, C], stride: 2, scale: 0.1, unit: V}
+      - {address: 33252, name: "Meter AC Current {i}", repeat: [A, B, C], stride: 2, scale: 0.01, unit: A}
+      - {address: 33257, name: "Meter Active Power {i}", repeat: [A, B, C], stride: 2, width: 2, scale: 1, unit: W}
+      - {address: 33263, name: Meter Total Active Power, width: 2, scale: 1, unit: W}
+      - {address: 33265, name: "Meter Reactive Power {i}", repeat: [A, B, C], stride: 2, width: 2, scale: 1, unit: var}
+      - {address: 33271, name: Meter Total Reactive Power, width: 2, scale: 1, unit: var}
+      - {address: 33273, name: "Meter Apparent Power {i}", repeat: [A, B, C], stride: 2, width: 2, scale: 1, unit: VA}
+      - {address: 33279, name: Meter Total Apparent Power, width: 2, scale: 1, unit: VA}
+      - {address: 33281, name: Meter Power Factor, scale: 0.01}
+      - {address: 33282, name: Meter Grid Frequency, scale: 0.01, unit: Hz}
+      - {address: 33283, name: Meter Total Active Energy From Grid, width: 2, scale: 1, unit: kWh}
+      - {address: 33285, name: Meter Total Active Energy To Grid, width: 2, scale: 1, unit: kWh}
+      - {address: 33289, name: TOU Function Version}
+
+      # --- meter 2 ---
+      - {address: 33300, name: Meter 1 Type and Location}
+      - {address: 33301, name: Meter 2 Type and Location}
+      - {address: 33302, name: "Meter 2 AC Voltage {i}", repeat: [A, B, C], stride: 2, scale: 0.1, unit: V}
+      - {address: 33303, name: "Meter 2 AC Current {i}", repeat: [A, B, C], stride: 2, scale: 0.01, unit: A}
+      - {address: 33308, name: "Meter 2 Active Power {i}", repeat: [A, B, C], stride: 2, width: 2, scale: 1, unit: W}
+      - {address: 33314, name: Meter 2 Total Active Power, width: 2, scale: 1, unit: W}
+      - {address: 33316, name: "Meter 2 Reactive Power {i}", repeat: [A, B, C], stride: 2, width: 2, scale: 1, unit: var}
+      - {address: 33322, name: Meter 2 Total Reactive Power, width: 2, scale: 1, unit: var}
+      - {address: 33324, name: "Meter 2 Apparent Power {i}", repeat: [A, B, C], stride: 2, width: 2, scale: 1, unit: VA}
+      - {address: 33330, name: Meter 2 Total Apparent Power, width: 2, scale: 1, unit: VA}
+      - {address: 33332, name: Meter 2 Power Factor, scale: 0.01}
+      - {address: 33333, name: Meter 2 Grid Frequency, scale: 0.01, unit: Hz}
+      - {address: 33334, name: Meter 2 Total Active Energy From Grid, width: 2, scale: 1, unit: kWh}
+      - {address: 33336, name: Meter 2 Total Active Energy To Grid, width: 2, scale: 1, unit: kWh}
+
+      # --- grid port / generator / household+backup energy ---
+      - {address: 33512, name: AC Grid Port Active Power Phase A, scale: 1, unit: W}
+      - {address: 33515, name: AC Grid Port Active Power Phase B, scale: 1, unit: W}
+      - {address: 33518, name: AC Grid Port Active Power Phase C, scale: 1, unit: W}
+      - {address: 33530, name: Generator Phase A Active Power, scale: 1, unit: W}
+      - {address: 33531, name: Generator Today Energy, scale: 0.1, unit: kWh}
+      - {address: 33532, name: Generator Total Energy, width: 2, scale: 1, unit: kWh}
+      - {address: 33534, name: Generator Phase B Active Power, scale: 1, unit: W}
+      - {address: 33535, name: Generator Phase C Active Power, scale: 1, unit: W}
+      - address: 33580
+        names:
+          - {name: Household Load Total Energy, width: 2, scale: 1, unit: kWh}
+          - {name: Household Load Year Energy, width: 2, scale: 1, unit: kWh}
+          - {name: Household Load Month Energy, width: 2, scale: 1, unit: kWh}
+          - {name: Household Load Today Energy, scale: 0.1, unit: kWh}
+      - address: 33590
+        names:
+          - {name: Backup Load Total Energy, width: 2, scale: 1, unit: kWh}
+          - {name: Backup Load Year Energy, width: 2, scale: 1, unit: kWh}
+          - {name: Backup Load Month Energy, width: 2, scale: 1, unit: kWh}
+          - {name: Backup Load Today Energy, scale: 0.1, unit: kWh}
+      - {address: 34243, name: Parallel Synchronization Setting Parameter Result}
+      - {address: 34328, name: "SmartPort {i} Phase Voltage", repeat: [A, B, C], scale: 0.1, unit: V}
+      - {address: 34331, name: "SmartPort {i} Phase Current", repeat: [A, B, C], scale: 0.1, unit: A}
+      - {address: 34391, name: "Smart Port Phase {i} Active Power", repeat: [A, B, C], scale: 1, unit: W}
+      - {address: 34445, name: AC Coupling Total Power Generation, width: 2, scale: 1, unit: kWh}
+      - {address: 34447, name: AC Coupling Year Power Generation, width: 2, scale: 1, unit: kWh}
+      - {address: 34449, name: AC Coupling Month Power Generation, width: 2, scale: 1, unit: kWh}
+      - {address: 34451, name: AC Coupling Today Power Generation, scale: 0.1, unit: kWh}
+      - {address: 34452, name: AC Coupling Yesterday Power Generation, scale: 0.1, unit: kWh}
+      - {address: 34496, name: AC Coupling Total Active Power, width: 2, scale: 1, unit: W}
+      - {address: 34502, names: [Remote Dispatch Capability, Remote Dispatch Function Map, Remote Dispatch Running Status]}
+      - {address: 35000, name: Inverter Type Definition}
+
+  # ======================================================================
+  # Hybrid inverter - control (holding registers)
+  # ======================================================================
+  - name: hybrid-control
+    kind: holding
+    registers:
+      - {address: 43007, name: Inverter Power State (On/Off)}
+      - {address: 43009, name: Battery Model}
+      - {address: 43010, name: Max Charge SOC, scale: 1, unit: "%"}
+      - {address: 43011, name: Overdischarge SOC, scale: 1, unit: "%"}
+      - {address: 43012, name: Max Charge Current, scale: 0.1, unit: A}
+      - {address: 43013, name: Max Discharge Current, scale: 0.1, unit: A}
+      - {address: 43016, name: Floating Charge Voltage, scale: 0.1, unit: V}
+      - {address: 43017, name: Equalizing Charge Voltage, scale: 0.1, unit: V}
+      - {address: 43018, name: Force Charge SOC, scale: 1, unit: "%"}
+      - {address: 43019, name: Battery Rated Capacity, scale: 1, unit: Ah}
+      - {address: 43020, name: Overdischarge Voltage, scale: 0.1, unit: V}
+      - {address: 43021, name: Forcecharge Voltage, scale: 0.1, unit: V}
+      - {address: 43024, name: Backup SOC, scale: 1, unit: "%"}
+      - {address: 43027, name: Forcecharge Power Limitation, scale: 1, unit: W}
+      - {address: 43028, name: Battery Force Charge Source}
+      - {address: 43070, name: Output Limit Gate}
+      - {address: 43073, name: Grid feed in Switch value}
+      - {address: 43074, name: Backflow Power, scale: 1, unit: W}
+      - {address: 43081, name: Output Power Clamp, scale: 1, unit: W}
+      - {address: 43090, name: Grid overvoltage limit HV1, scale: 0.1, unit: V}
+      - {address: 43092, name: Grid overvoltage limit HV2, scale: 0.1, unit: V}
+      - {address: 43110, name: Storage control Switch value}
+      - {address: 43111, name: Backup Supply value}
+      - {address: 43117, name: Battery Max Charge Current, scale: 0.1, unit: A}
+      - {address: 43118, name: Battery Max Discharge Current, scale: 0.1, unit: A}
+      - address: 43128
+        names:
+          - {name: RC Inverter AC Grid Active Power}
+          - {name: RC Force Battery Discharge Power}
+          - {name: Battery Charge Limit Power}
+          - {name: Battery Discharge Limit Power}
+          - {name: RC Grid Adjustment}
+          - {name: RC Grid Active Power}
+          - {name: RC Grid Reactive Power}
+          - {name: RC Force Battery Charge/discharge}
+          - {name: RC Force Battery Charge Power}
+          - {name: Off-Grid Overdischarge SOC}
+      - {address: 43141, name: TimeCharging Charge Current, scale: 0.1, unit: A}
+      - {address: 43142, name: TimeCharging Discharge Current, scale: 0.1, unit: A}
+      # TimeCharging slots 1-5 (V1 TOU): 10 registers apart, 8 used
+      - address: 43143
+        repeat: 5
+        stride: 10
+        names:
+          - "Time-Charging Charge Start Hour (Slot {n})"
+          - "Time-Charging Charge Start Minute (Slot {n})"
+          - "Time-Charging Charge End Hour (Slot {n})"
+          - "Time-Charging Charge End Minute (Slot {n})"
+          - "Time-Charging Discharge Start Hour (Slot {n})"
+          - "Time-Charging Discharge Start Minute (Slot {n})"
+          - "Time-Charging Discharge End Hour (Slot {n})"
+          - "Time-Charging Discharge End Minute (Slot {n})"
+      - {address: 43195, name: Export Calibration, scale: 1, unit: W}
+      - {address: 43249, name: Special Settings (bit flags)}
+      - {address: 43282, name: RC Timeout, scale: 1, unit: min}
+      - {address: 43291, name: Flexible Export Backflow Power, scale: 1, unit: W}
+      - {address: 43292, name: Flexible Export Enabling Switch}
+      - {address: 43302, name: Hybrid auxiliary control flags}
+      - {address: 43340, name: Generator Set Enable Switch}
+      - {address: 43361, name: MPPT Scanning Interval, scale: 1, unit: s}
+      - {address: 43363, name: Forced Start of Generator}
+      - {address: 43364, name: Rated Input Power of Generator, scale: 1, unit: kW}
+      - {address: 43365, name: Generator Setting Switch}
+      - {address: 43366, name: Generator Forced Stop}
+      - {address: 43367, name: Maximum Allowable Percentage of Generator, scale: 1, unit: "%"}
+      - {address: 43368, name: Generator Target Power, scale: 1, unit: kW}
+      - {address: 43369, name: Generator Charging Power, scale: 1, unit: kW}
+      - {address: 43452, name: Grid overvoltage limit HV3, scale: 0.1, unit: V}
+      - {address: 43483, name: Hybrid Function Control}
+      - {address: 43487, name: Peak Baseline SOC, scale: 1, unit: "%"}
+      - {address: 43488, name: Peak Max Usable Grid Power, scale: 1, unit: W}
+      - {address: 43707, name: Time of Use V2 Switch (bit flags)}
+      # TOU V2: 6 slots x 7 registers; charge from 43708, discharge from 43750
+      - address: 43708
+        repeat: 6
+        names:
+          - {name: "Grid Time of Use Charge cut off SOC (Slot {n})", scale: 1, unit: "%"}
+          - {name: "Grid Time of Use Charge battery current (Slot {n})", scale: 0.1, unit: A}
+          - {name: "Grid Time of Use Charge cut off voltage (Slot {n})", scale: 0.1, unit: V}
+          - "Grid Time of Use Charge Start Hour (Slot {n})"
+          - "Grid Time of Use Charge Start Minute (Slot {n})"
+          - "Grid Time of Use Charge End Hour (Slot {n})"
+          - "Grid Time of Use Charge End Minute (Slot {n})"
+      - address: 43750
+        repeat: 6
+        names:
+          - {name: "Grid Time of Use Discharge cut off SOC (Slot {n})", scale: 1, unit: "%"}
+          - {name: "Grid Time of Use Discharge battery current (Slot {n})", scale: 0.1, unit: A}
+          - {name: "Grid Time of Use Discharge cut off voltage (Slot {n})", scale: 0.1, unit: V}
+          - "Grid Time of Use Discharge Start Hour (Slot {n})"
+          - "Grid Time of Use Discharge Start Minute (Slot {n})"
+          - "Grid Time of Use Discharge End Hour (Slot {n})"
+          - "Grid Time of Use Discharge End Minute (Slot {n})"
+      - {address: 43815, name: Generator charging switch}
+      - address: 44100
+        names: [Dispatch Active, Dispatch Failsafe Interval, Dispatch Limit Switches,
+                Dispatch Import Limit, Dispatch Export Limit, Dispatch Control Mode]
+      - {address: 44106, name: Dispatch Power Target, width: 2, scale: 1, unit: W}
+      - address: 44108
+        names: [Dispatch Function Bits, Dispatch SOC Lower Limit, Dispatch SOC Upper Limit,
+                Dispatch Battery Reserve SOC, Dispatch PV Limit Percentage]
+      - {address: 44280, name: Remote Active Power Control Command}
+
+  # ======================================================================
+  # String inverter - input registers
+  # ======================================================================
+  - name: string-information
+    kind: input
+    registers:
+      - address: 2999
+        names: [Product Model, DSP Software Version, HMI Major Version, AC Output Type, DC Input Type]
+      - {address: 3004, name: Active Power, width: 2, scale: 1, unit: W}
+      - {address: 3006, name: Total DC Output Power, width: 2, scale: 1, unit: W}
+      - {address: 3008, name: Total Energy, width: 2, scale: 1, unit: kWh}
+      - {address: 3010, name: Energy This Month, width: 2, scale: 1, unit: kWh}
+      - {address: 3012, name: Energy Last Month, width: 2, scale: 1, unit: kWh}
+      - {address: 3014, name: Energy Today, scale: 0.1, unit: kWh}
+      - {address: 3015, name: Energy Yesterday, scale: 0.1, unit: kWh}
+      - {address: 3016, name: Energy This Year, width: 2, scale: 1, unit: kWh}
+      - {address: 3018, name: Energy Last Year, width: 2, scale: 1, unit: kWh}
+      - {address: 3021, name: "DC Voltage {n}", repeat: 4, stride: 2, scale: 0.1, unit: V}
+      - {address: 3022, name: "DC Current {n}", repeat: 4, stride: 2, scale: 0.1, unit: A}
+      - {address: 3033, name: "{i} Phase Voltage", repeat: [A, B, C], scale: 0.1, unit: V}
+      - {address: 3036, name: "{i} Phase Current", repeat: [A, B, C], scale: 0.1, unit: A}
+      - {address: 3040, name: Working Mode}
+      - {address: 3041, name: Inverter Temperature, scale: 0.1, unit: C}
+      - {address: 3042, name: Grid Frequency, scale: 0.01, unit: Hz}
+      - {address: 3043, name: Inverter Status}
+      - {address: 3044, name: Limited active power adjustment rated power output value, width: 2, scale: 1, unit: W}
+      - {address: 3046, name: Reactive power regulation rated power output value, width: 2, scale: 1, unit: var}
+      - {address: 3049, name: Actual Limited Active Power, scale: 1, unit: "%"}
+      - {address: 3050, name: Actual Adjusted Power Factor}
+      - {address: 3051, name: Actual Power Factor Adjustment}
+      - {address: 3089, name: Power Limitation Switch (89)}
+      - {address: 3179, name: Shading MPPT Scan Enable}
+      - {address: 3180, name: Shading MPPT Scan Time Interval, scale: 1, unit: min}
+      - {address: 3250, name: "Meter AC Voltage {i}", repeat: [A, B, C], stride: 2, scale: 0.1, unit: V}
+      - {address: 3251, name: "Meter AC Current {i}", repeat: [A, B, C], stride: 2, scale: 0.01, unit: A}
+      - {address: 3256, name: "Meter AC Active Power {i}", repeat: [A, B, C], stride: 2, width: 2, scale: 0.001, unit: kW}
+      - {address: 3262, name: Meter AC Active Power Total, width: 2, scale: 0.001, unit: kW}
+      - {address: 3280, name: Meter Power Factor, scale: 0.01}
+      - {address: 3281, name: Meter Grid Frequency, scale: 0.01, unit: Hz}
+      - {address: 3282, name: Meter Grid Import Total Energy, width: 2, scale: 1, unit: kWh}
+      - {address: 3284, name: Meter Grid Export Total Energy, width: 2, scale: 1, unit: kWh}
+      - {address: 36013, name: EPM Model No}
+      - {address: 36014, name: Inverter EPM Firmware Version}
+      - {address: 36022, names: [Clock Hours, Clock Minutes, Clock Seconds]}
+      - {address: 36028, name: Total Load power, width: 2, scale: 1, unit: W}
+      - {address: 36050, name: Total Generation Energy, width: 2, scale: 1, unit: kWh}
+      - {address: 36052, name: Load Total Consumption Energy, width: 2, scale: 1, unit: kWh}
+      - {address: 36054, name: Grid Import Total Active Energy, width: 2, scale: 1, unit: kWh}
+      - {address: 36056, name: Grid Export Total Active Energy, width: 2, scale: 1, unit: kWh}
